@@ -1,3 +1,5 @@
+> 本仓库包含海外网络播放优化。接手请先阅读 [中文交接文档](docs/HANDOVER.zh-CN.md)，技术依据与实机结果见 [调查报告](docs/network-playback-investigation.md)。
+
 <div align="center">
     <img width="200" height="200" src="assets/images/logo/logo.png">
 </div>

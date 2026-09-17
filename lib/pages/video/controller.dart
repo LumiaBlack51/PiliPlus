@@ -21,6 +21,7 @@ import 'package:PiliPlus/models/common/sponsor_block/post_segment_model.dart';
 import 'package:PiliPlus/models/common/sponsor_block/segment_model.dart';
 import 'package:PiliPlus/models/common/sponsor_block/segment_type.dart';
 import 'package:PiliPlus/models/common/video/audio_quality.dart';
+import 'package:PiliPlus/models/common/video/cdn_type.dart';
 import 'package:PiliPlus/models/common/video/source_type.dart';
 import 'package:PiliPlus/models/common/video/video_decode_type.dart';
 import 'package:PiliPlus/models/common/video/video_quality.dart';
@@ -722,6 +723,20 @@ class VideoDetailController extends GetxController
     bool? autoplay,
     bool autoFullScreenFlag = false,
   }) async {
+    final adaptive =
+        !isFileSource &&
+        VideoUtils.cdnService == CDNService.adaptive &&
+        const ['http', 'https'].contains(Uri.tryParse(videoUrl ?? '')?.scheme);
+    final audioCandidates = <String>[];
+    if (adaptive && !VideoUtils.disableAudioCDN) {
+      for (final item in data.dash?.audio ?? <AudioItem>[]) {
+        if (item.id == currentAudioQa?.code &&
+            audioUrl == VideoUtils.getCdnUrl(item.playUrls, isAudio: true)) {
+          audioCandidates.addAll(item.playUrls);
+          break;
+        }
+      }
+    }
     Duration? seek = defaultST ?? playedTime;
     if (seek == .zero) seek = null;
     seek ??= getFirstSegment();
@@ -736,6 +751,15 @@ class VideoDetailController extends GetxController
           : NetworkSource(
               videoSource: videoUrl!,
               audioSource: audioUrl,
+              videoCandidates: adaptive
+                  ? (videoUrl == VideoUtils.getCdnUrl(firstVideo.playUrls)
+                        ? firstVideo.playUrls.toList()
+                        : [videoUrl!])
+                  : const [],
+              audioCandidates: audioCandidates,
+              bitrate: videoUrl == VideoUtils.getCdnUrl(firstVideo.playUrls)
+                  ? firstVideo.bandWidth
+                  : null,
             ),
       seekTo: seek,
       duration: data.timeLength == null

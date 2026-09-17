@@ -25,6 +25,7 @@ enum CDNService {
   cosov('cosov（腾讯云海外）', 'upos-sz-mirrorcosov.bilivideo.com'),
   hwov('hwov（华为云海外）', 'upos-sz-mirrorhwov.bilivideo.com'),
   hk_bcache('hk_bcache（Bilibili海外）', 'cn-hk-eq-bcache-01.bilivideo.com'),
+  adaptive('自动优选（海外网络）'),
   ;
 
   final String desc;

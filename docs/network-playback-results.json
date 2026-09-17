@@ -1,0 +1,137 @@
+{
+  "lab-hdr-baseline": [
+    {
+      "test": "HDR-original@upos-sz-mirrorcosov.bilivideo.com",
+      "samples": 180,
+      "startup_seek_buffers": [
+        0.406,
+        0.668,
+        1.677
+      ],
+      "underruns": [
+        1.713,
+        2.16,
+        6.411,
+        3.119,
+        3.045,
+        9.212,
+        11.265,
+        8.382,
+        4.619,
+        4.352,
+        8.69,
+        8.326,
+        3.612,
+        3.166,
+        14.251,
+        2.005
+      ],
+      "stall_seconds": 94.328,
+      "unfinished_buffer_seconds": 2.005,
+      "paused_samples": 95,
+      "decoder_drops": 0,
+      "errors": 1,
+      "complete": true
+    }
+  ],
+  "lab-hdr-dart-relay-fixed": [
+    {
+      "test": "HDR-dart-relay@upos-sz-mirrorcosov.bilivideo.com",
+      "samples": 180,
+      "startup_seek_buffers": [
+        2.35,
+        2.287
+      ],
+      "underruns": [],
+      "stall_seconds": 0,
+      "unfinished_buffer_seconds": null,
+      "paused_samples": 0,
+      "decoder_drops": 0,
+      "errors": 0,
+      "complete": true
+    }
+  ],
+  "lab-hdr-production": [
+    {
+      "test": "hev1-HDR@upos-sz-mirrorcosov.bilivideo.com",
+      "samples": 180,
+      "startup_seek_buffers": [
+        2.491,
+        2.22
+      ],
+      "underruns": [],
+      "stall_seconds": 0,
+      "unfinished_buffer_seconds": null,
+      "paused_samples": 0,
+      "decoder_drops": 0,
+      "errors": 0,
+      "complete": true
+    }
+  ],
+  "lab-1080-production": [
+    {
+      "test": "avc1.640032@upos-hz-mirrorakam.akamaized.net",
+      "samples": 45,
+      "startup_seek_buffers": [
+        0.15,
+        2.17,
+        2.514
+      ],
+      "underruns": [],
+      "stall_seconds": 0,
+      "unfinished_buffer_seconds": null,
+      "paused_samples": 0,
+      "decoder_drops": 0,
+      "errors": 0,
+      "complete": true
+    },
+    {
+      "test": "hev1.1.6.L150.90@upos-hz-mirrorakam.akamaized.net",
+      "samples": 45,
+      "startup_seek_buffers": [
+        2.145,
+        2.456
+      ],
+      "underruns": [],
+      "stall_seconds": 0,
+      "unfinished_buffer_seconds": null,
+      "paused_samples": 0,
+      "decoder_drops": 0,
+      "errors": 0,
+      "complete": true
+    },
+    {
+      "test": "av01.0.12M.08.0.110.01.01.01.0@upos-hz-mirrorakam.akamaized.net",
+      "samples": 45,
+      "startup_seek_buffers": [
+        1.875,
+        1.785
+      ],
+      "underruns": [],
+      "stall_seconds": 0,
+      "unfinished_buffer_seconds": null,
+      "paused_samples": 0,
+      "decoder_drops": 0,
+      "errors": 0,
+      "complete": true
+    }
+  ],
+  "lab-hdr-local-control-valid": [
+    {
+      "test": "HDR-local-control@",
+      "samples": 180,
+      "startup_seek_buffers": [
+        0.171,
+        0.157,
+        0.12
+      ],
+      "underruns": [],
+      "stall_seconds": 0,
+      "unfinished_buffer_seconds": null,
+      "paused_samples": 0,
+      "decoder_drops": 0,
+      "errors": 0,
+      "complete": true
+    }
+  ]
+}

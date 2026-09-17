@@ -149,4 +149,15 @@ pili_release.json
 
 dist
 
+# Temporary signed playback fixtures (device diagnostics)
+lab-playurl.json
+**/lab-playurl.json
+
 test*
+# Playback network regression tests
+!test/
+test/*
+!test/utils/
+test/utils/*
+!test/utils/cdn_selector_test.dart
+!test/utils/adaptive_media_source_test.dart

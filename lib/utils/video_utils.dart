@@ -26,6 +26,9 @@ abstract final class VideoUtils {
     bool isAudio = false,
   }) {
     defaultCDNService ??= cdnService;
+    if (defaultCDNService == CDNService.adaptive) {
+      return urls.first;
+    }
 
     if (defaultCDNService == CDNService.baseUrl) {
       return urls.first;

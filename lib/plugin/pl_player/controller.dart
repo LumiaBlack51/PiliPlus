@@ -28,6 +28,7 @@ import 'package:PiliPlus/plugin/pl_player/models/play_repeat.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_status.dart';
 import 'package:PiliPlus/plugin/pl_player/models/video_fit_type.dart';
 import 'package:PiliPlus/plugin/pl_player/utils/fullscreen.dart';
+import 'package:PiliPlus/utils/adaptive_media_source.dart';
 import 'package:PiliPlus/services/service_locator.dart';
 import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/android/android_helper.dart';
@@ -67,6 +68,13 @@ import 'package:window_manager/window_manager.dart';
 typedef PlayCallback = Future<void>? Function();
 
 class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
+  static const _networkDiagnostics = bool.fromEnvironment(
+    'PILI_NETWORK_DIAGNOSTICS',
+  );
+  Timer? _networkDiagnosticTimer;
+  AdaptiveMediaSource? _adaptiveSource;
+  int _sourceGeneration = 0;
+
   Player? _videoPlayerController;
   VideoController? _videoController;
 
@@ -604,6 +612,9 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
     Volume? volume,
     bool autoFullScreenFlag = false,
   }) async {
+    final generation = ++_sourceGeneration;
+    _adaptiveSource?.close();
+    _adaptiveSource = null;
     try {
       _processing = true;
       this.isLive = isLive;
@@ -638,7 +649,13 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
         return;
       }
       // 配置Player 音轨、字幕等等
-      await _createVideoController(dataSource, seekTo, volume);
+      await _createVideoController(
+        dataSource,
+        seekTo,
+        volume,
+        generation: generation,
+      );
+      if (generation != _sourceGeneration) return;
 
       if (_playerCount == 0) {
         _removeListeners();
@@ -660,13 +677,14 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
       await _initializePlayer();
       onInit?.call();
     } catch (err, stackTrace) {
+      if (generation != _sourceGeneration) return;
       dataStatus.value = DataStatus.error;
       if (kDebugMode) {
         debugPrint(stackTrace.toString());
         debugPrint('plPlayer err:  $err');
       }
     } finally {
-      _processing = false;
+      if (generation == _sourceGeneration) _processing = false;
     }
   }
 
@@ -769,8 +787,9 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
   Future<void> _createVideoController(
     DataSource dataSource,
     Duration? seekTo,
-    Volume? volume,
-  ) async {
+    Volume? volume, {
+    int? generation,
+  }) async {
     isBuffering.value = false;
     _heartDuration = 0;
     danmakuController?.clear();
@@ -792,6 +811,35 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
       }
     }
 
+    if (generation != null && generation != _sourceGeneration) return;
+    if (generation != null &&
+        !isLive &&
+        dataSource is NetworkSource &&
+        dataSource.videoCandidates.isNotEmpty) {
+      final session = await AdaptiveMediaSource.create(
+        tracks: [
+          CdnMediaTrack(
+            url: dataSource.videoSource,
+            candidates: dataSource.videoCandidates,
+            bitrate: dataSource.bitrate,
+          ),
+          if (dataSource.audioSource case final audio? when audio.isNotEmpty)
+            CdnMediaTrack(url: audio, candidates: dataSource.audioCandidates),
+        ],
+        userAgent: BrowserUa.pc,
+        log: (message) => debugPrint('PILI_CDN $message'),
+      );
+      if (generation != _sourceGeneration) {
+        await session.close();
+        return;
+      }
+      _adaptiveSource = session;
+      await session.initialize();
+      if (generation != _sourceGeneration) return;
+    }
+    // Only loopback reads allow time for one bounded upstream retry/failover.
+    player.setProperty('network-timeout', _adaptiveSource == null ? '5' : '20');
+
     final Map<String, String> extras = {
       if (dataSource is FileSource)
         'cache': 'no'
@@ -801,8 +849,19 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
         ...buffer,
     };
 
-    String video = dataSource.videoSource;
-    if (dataSource.audioSource case final audio? when (audio.isNotEmpty)) {
+    String video = _adaptiveSource?.url(0) ?? dataSource.videoSource;
+    final audioSource =
+        (_adaptiveSource != null && _adaptiveSource!.tracks.length > 1)
+        ? _adaptiveSource!.url(1)
+        : dataSource.audioSource;
+    if (_networkDiagnostics) {
+      debugPrint(
+        'PILI_NET open adaptive=${_adaptiveSource != null} video=${Uri.tryParse(video)?.host} '
+        'audio=${Uri.tryParse(dataSource.audioSource ?? '')?.host} '
+        'seek_ms=${seekTo?.inMilliseconds ?? 0} cache=$extras',
+      );
+    }
+    if (audioSource case final audio? when (audio.isNotEmpty)) {
       if (onlyPlayAudio.value) {
         video = audio;
       } else {
@@ -879,6 +938,27 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
   /// 播放事件监听
   void _startListeners(NativePlayer player) {
     assert(_subscriptions == null);
+    if (_networkDiagnostics) {
+      _networkDiagnosticTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+        final values = <String, String>{};
+        for (final name in const [
+          'time-pos',
+          'paused-for-cache',
+          'demuxer-cache-duration',
+          'cache-speed',
+          'decoder-frame-drop-count',
+          'video-format',
+          'width',
+          'height',
+          'hwdec-current',
+        ]) {
+          try {
+            values[name] = player.getProperty(name);
+          } catch (_) {}
+        }
+        debugPrint('PILI_NET sample $values');
+      });
+    }
     final stream = player.stream;
     _subscriptions = [
       /// playing
@@ -957,6 +1037,13 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
         buffered.value = buffer.inSeconds;
       }),
       stream.buffering.listen((bool buffering) {
+        if (_networkDiagnostics) {
+          debugPrint(
+            'PILI_NET buffering=$buffering '
+            'position_ms=${player.state.position.inMilliseconds} '
+            'buffer_ms=${player.state.buffer.inMilliseconds}',
+          );
+        }
         isBuffering.value = buffering;
         videoPlayerServiceHandler?.onStatusChange(
           playerStatus.value,
@@ -1034,6 +1121,8 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
 
   /// 移除事件监听
   void _removeListeners() {
+    _networkDiagnosticTimer?.cancel();
+    _networkDiagnosticTimer = null;
     _subscriptions?.forEach((e) => e.cancel());
     _subscriptions?.clear();
     _subscriptions = null;
@@ -1539,6 +1628,9 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
       return;
     }
 
+    ++_sourceGeneration;
+    _adaptiveSource?.close();
+    _adaptiveSource = null;
     _playerCount = 0;
     if (removeSafeArea) {
       showSystemBar();

@@ -158,6 +158,10 @@ class _CdnSelectDialogState extends State<CdnSelectDialog> {
   }
 
   Future<void> _testSingleCdn(CDNService item, BaseItem videoItem) async {
+    if (item == CDNService.adaptive) {
+      _cdnResList[item.index].value = '播放时自动探测候选节点';
+      return;
+    }
     try {
       final cdnUrl = VideoUtils.getCdnUrl(
         videoItem.playUrls,
