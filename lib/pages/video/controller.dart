@@ -22,6 +22,7 @@ import 'package:PiliPlus/models/common/sponsor_block/segment_model.dart';
 import 'package:PiliPlus/models/common/sponsor_block/segment_type.dart';
 import 'package:PiliPlus/models/common/video/audio_quality.dart';
 import 'package:PiliPlus/models/common/video/cdn_type.dart';
+import 'package:PiliPlus/utils/browser_http_session.dart';
 import 'package:PiliPlus/models/common/video/source_type.dart';
 import 'package:PiliPlus/models/common/video/video_decode_type.dart';
 import 'package:PiliPlus/models/common/video/video_quality.dart';
@@ -723,7 +724,23 @@ class VideoDetailController extends GetxController
     bool? autoplay,
     bool autoFullScreenFlag = false,
   }) async {
+    final browser =
+        !isFileSource &&
+        isUgc &&
+        BrowserHttpSession.enabled &&
+        videoUrl == VideoUtils.getCdnUrl(firstVideo.playUrls);
+    String? browserAudio = audioUrl;
+    if (browser) {
+      for (final item in data.dash?.audio ?? <AudioItem>[]) {
+        if (item.id == currentAudioQa?.code &&
+            audioUrl == VideoUtils.getCdnUrl(item.playUrls, isAudio: true)) {
+          browserAudio = item.playUrls.first;
+          break;
+        }
+      }
+    }
     final adaptive =
+        !browser &&
         !isFileSource &&
         VideoUtils.cdnService == CDNService.adaptive &&
         const ['http', 'https'].contains(Uri.tryParse(videoUrl ?? '')?.scheme);
@@ -749,8 +766,9 @@ class VideoDetailController extends GetxController
               hasDashAudio: entry.hasDashAudio,
             )
           : NetworkSource(
-              videoSource: videoUrl!,
-              audioSource: audioUrl,
+              browserTransport: browser,
+              videoSource: browser ? firstVideo.playUrls.first : videoUrl!,
+              audioSource: browser ? browserAudio : audioUrl,
               videoCandidates: adaptive
                   ? (videoUrl == VideoUtils.getCdnUrl(firstVideo.playUrls)
                         ? firstVideo.playUrls.toList()

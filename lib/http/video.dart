@@ -28,6 +28,8 @@ import 'package:PiliPlus/models_new/video/video_play_info/data.dart';
 import 'package:PiliPlus/models_new/video/video_relation/data.dart';
 import 'package:PiliPlus/models_new/video/video_shot/data.dart';
 import 'package:PiliPlus/utils/accounts.dart';
+import 'package:PiliPlus/utils/browser_http_session.dart';
+import 'package:PiliPlus/utils/login_utils.dart';
 import 'package:PiliPlus/utils/app_sign.dart';
 import 'package:PiliPlus/utils/extension/string_ext.dart';
 import 'package:PiliPlus/utils/global_data.dart';
@@ -236,7 +238,30 @@ abstract final class VideoHttp {
     });
 
     try {
-      final res = await Request().get(videoType.api, queryParameters: params);
+      final Response res;
+      if (BrowserHttpSession.enabled &&
+          videoType == VideoType.ugc &&
+          Accounts.mainEqVideo) {
+        await LoginUtils.setWebCookie();
+        final browser = await BrowserHttpSession.create();
+        try {
+          final payload = await browser.fetchPlayUrl(
+            Uri.https(
+              'api.bilibili.com',
+              videoType.api,
+              params.map((key, value) => MapEntry(key, value.toString())),
+            ),
+          );
+          res = Response(
+            data: payload,
+            requestOptions: RequestOptions(path: videoType.api),
+          );
+        } finally {
+          await browser.close();
+        }
+      } else {
+        res = await Request().get(videoType.api, queryParameters: params);
+      }
 
       if (res.data['code'] == 0) {
         late PlayUrlModel data;

@@ -29,6 +29,7 @@ import 'package:PiliPlus/plugin/pl_player/models/play_status.dart';
 import 'package:PiliPlus/plugin/pl_player/models/video_fit_type.dart';
 import 'package:PiliPlus/plugin/pl_player/utils/fullscreen.dart';
 import 'package:PiliPlus/utils/adaptive_media_source.dart';
+import 'package:PiliPlus/utils/browser_http_session.dart';
 import 'package:PiliPlus/services/service_locator.dart';
 import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/android/android_helper.dart';
@@ -815,20 +816,36 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
     if (generation != null &&
         !isLive &&
         dataSource is NetworkSource &&
-        dataSource.videoCandidates.isNotEmpty) {
-      final session = await AdaptiveMediaSource.create(
-        tracks: [
-          CdnMediaTrack(
-            url: dataSource.videoSource,
-            candidates: dataSource.videoCandidates,
-            bitrate: dataSource.bitrate,
-          ),
-          if (dataSource.audioSource case final audio? when audio.isNotEmpty)
-            CdnMediaTrack(url: audio, candidates: dataSource.audioCandidates),
-        ],
-        userAgent: BrowserUa.pc,
-        log: (message) => debugPrint('PILI_CDN $message'),
-      );
+        (dataSource.browserTransport ||
+            dataSource.videoCandidates.isNotEmpty)) {
+      final browser = dataSource.browserTransport
+          ? await BrowserHttpSession.create()
+          : null;
+      if (generation != _sourceGeneration) {
+        await browser?.close();
+        return;
+      }
+      late final AdaptiveMediaSource session;
+      try {
+        session = await AdaptiveMediaSource.create(
+          tracks: [
+            CdnMediaTrack(
+              url: dataSource.videoSource,
+              candidates: dataSource.videoCandidates,
+              bitrate: dataSource.bitrate,
+            ),
+            if (dataSource.audioSource case final audio? when audio.isNotEmpty)
+              CdnMediaTrack(url: audio, candidates: dataSource.audioCandidates),
+          ],
+          userAgent: BrowserUa.pc,
+          log: (message) => debugPrint('PILI_CDN $message'),
+          readBrowserRange: browser?.fetchRange,
+          closeBrowser: browser?.close,
+        );
+      } catch (_) {
+        await browser?.close();
+        rethrow;
+      }
       if (generation != _sourceGeneration) {
         await session.close();
         return;
@@ -856,7 +873,8 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
         : dataSource.audioSource;
     if (_networkDiagnostics) {
       debugPrint(
-        'PILI_NET open adaptive=${_adaptiveSource != null} video=${Uri.tryParse(video)?.host} '
+        'PILI_NET open browser=${dataSource is NetworkSource && dataSource.browserTransport} '
+        'bridge=${_adaptiveSource != null} video=${Uri.tryParse(video)?.host} '
         'audio=${Uri.tryParse(dataSource.audioSource ?? '')?.host} '
         'seek_ms=${seekTo?.inMilliseconds ?? 0} cache=$extras',
       );

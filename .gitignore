@@ -161,3 +161,4 @@ test/*
 test/utils/*
 !test/utils/cdn_selector_test.dart
 !test/utils/adaptive_media_source_test.dart
+!test/utils/browser_media_bridge_test.dart

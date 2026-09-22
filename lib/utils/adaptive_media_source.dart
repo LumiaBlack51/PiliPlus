@@ -4,6 +4,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:PiliPlus/utils/cdn_selector.dart';
+import 'package:PiliPlus/utils/browser_http_session.dart';
 
 class CdnMediaTrack {
   CdnMediaTrack({required this.url, required this.candidates, this.bitrate});
@@ -33,6 +34,8 @@ class AdaptiveMediaSource {
   final String userAgent;
   final void Function(String)? log;
   final CdnSelector _selector;
+  BrowserFetch Function(String url, int start, int end)? _readBrowserRange;
+  Future<void> Function()? _closeBrowser;
   final Map<int, _Transfer> _active = {};
   final String _token = List.generate(
     16,
@@ -45,12 +48,16 @@ class AdaptiveMediaSource {
     required List<CdnMediaTrack> tracks,
     required String userAgent,
     void Function(String)? log,
+    BrowserFetch Function(String url, int start, int end)? readBrowserRange,
+    Future<void> Function()? closeBrowser,
   }) async {
     if (tracks.isEmpty || tracks.length > 2) {
       throw ArgumentError('Expected 1-2 tracks');
     }
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-    final source = AdaptiveMediaSource._(server, tracks, userAgent, log);
+    final source = AdaptiveMediaSource._(server, tracks, userAgent, log)
+      .._readBrowserRange = readBrowserRange
+      .._closeBrowser = closeBrowser;
     server.listen((request) => unawaited(source._handle(request)));
     return source;
   }
@@ -58,6 +65,7 @@ class AdaptiveMediaSource {
   String url(int index) => 'http://127.0.0.1:${_server.port}/$_token/$index';
 
   Future<void> initialize() async {
+    if (_readBrowserRange != null) return; // Preserve the official primary URL.
     for (final track in tracks) {
       if (_closed) return;
       track.url = await _selector.select(track.candidates, fallback: track.url);
@@ -73,10 +81,12 @@ class AdaptiveMediaSource {
     }
     _active.clear();
     await _server.close(force: true);
+    await _closeBrowser?.call();
   }
 
   Future<bool> _switch(CdnMediaTrack track, {double? maximumCost}) async {
-    if (_closed ||
+    if (_readBrowserRange != null ||
+        _closed ||
         CdnSelector.candidates(track.candidates).length < 2 ||
         (track.lastSwitch != null &&
             DateTime.now().difference(track.lastSwitch!) < _cooldown)) {
@@ -239,6 +249,40 @@ class AdaptiveMediaSource {
     int start,
     int end,
   ) async {
+    if (_readBrowserRange case final read?) {
+      final watch = Stopwatch()..start();
+      final fetch = read(track.url, start, end);
+      transfer.cancelBrowser = fetch.cancel;
+      try {
+        final response = await fetch.result;
+        if (_closed || transfer.cancelled) {
+          throw const HttpException('Cancelled');
+        }
+        final range = RegExp(r'^bytes (\d+)-(\d+)/(\d+)$')
+            .firstMatch(response.contentRange ?? '');
+        if (response.status != 206 ||
+            range == null ||
+            int.parse(range[1]!) != start ||
+            int.parse(range[2]!) > end ||
+            int.parse(range[2]!) < start ||
+            int.parse(range[3]!) <= int.parse(range[2]!) ||
+            response.bytes.length != int.parse(range[2]!) - start + 1 ||
+            response.bytes.length > chunkBytes ||
+            (track.length != null && track.length != int.parse(range[3]!))) {
+          throw const HttpException('Invalid browser range response');
+        }
+        track.length = int.parse(range[3]!);
+        log?.call(
+          'chromium range bytes=${response.bytes.length} '
+          'elapsed_ms=${watch.elapsedMilliseconds}',
+        );
+        return _Chunk(response.bytes, track.length!, 0);
+      } finally {
+        if (transfer.cancelBrowser == fetch.cancel) {
+          transfer.cancelBrowser = null;
+        }
+      }
+    }
     // A client belongs to one range, so timed-out sockets cannot leak into retry.
     final client = HttpClient()
       ..autoUncompress = false
@@ -335,11 +379,13 @@ class _Chunk {
 }
 
 class _Transfer {
+  void Function()? cancelBrowser;
   HttpClient? client;
   Socket? socket;
   bool cancelled = false;
   void cancel() {
     cancelled = true;
+    cancelBrowser?.call();
     client?.close(force: true);
     socket?.destroy();
   }
