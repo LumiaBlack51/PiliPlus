@@ -41,17 +41,18 @@ class ShutdownTimerService {
   DateTime? _deadline;
   DateTime? get deadline => _deadline;
   Timer? _shutdownTimer;
-  bool get isActive => _shutdownTimer?.isActive ?? false;
+  bool get isActive => isWaiting || (_shutdownTimer?.isActive ?? false);
   int _durationInMinutes = 0;
   _ShutdownType _shutdownType = .pause;
 
   bool _isWaiting = false;
   bool get isWaiting => _isWaiting;
   bool _waitUntilCompleted = false;
+  bool _endOfVideoOnly = false;
 
   void _stopTimer() {
+    _deadline = null;
     if (_shutdownTimer != null) {
-      _deadline = null;
       _shutdownTimer!.cancel();
       _shutdownTimer = null;
     }
@@ -60,7 +61,14 @@ class ShutdownTimerService {
   void reset([int durationInMinutes = 0]) {
     _stopTimer();
     _isWaiting = false;
+    _endOfVideoOnly = false;
     _durationInMinutes = durationInMinutes;
+  }
+
+  void stopAfterCurrentVideo() {
+    reset();
+    _endOfVideoOnly = true;
+    _isWaiting = true;
   }
 
   void _startShutdownTimer(int durationInMinutes) {
@@ -78,6 +86,8 @@ class ShutdownTimerService {
   }
 
   void _handleShutdown() {
+    _stopTimer();
+    _durationInMinutes = 0;
     switch (_shutdownType) {
       case .pause:
         late final player = PlPlayerController.instance;
@@ -108,11 +118,12 @@ class ShutdownTimerService {
   }
 
   void handleWaiting() {
+    if (!_isWaiting) return;
+    reset();
     switch (_shutdownType) {
       case .pause:
-        _isWaiting = false;
-        _durationInMinutes = 0;
-        SmartDialog.showToast('定时时间已到，已暂停');
+        (onPause ?? PlPlayerController.instance?.pause)?.call();
+        SmartDialog.showToast('当前视频已结束，已暂停');
       case .exit:
         _syncProgressAndExit();
     }
@@ -283,7 +294,7 @@ class ShutdownTimerService {
                           },
                           style: titleStyle,
                         ),
-                        trailing: _durationInMinutes == minutes
+                        trailing: !isWaiting && _durationInMinutes == minutes
                             ? Icon(
                                 size: 20,
                                 Icons.done,
@@ -292,6 +303,25 @@ class ShutdownTimerService {
                             : null,
                       ),
                     ),
+                if (!isLive)
+                  ListTile(
+                    dense: true,
+                    onTap: () {
+                      stopAfterCurrentVideo();
+                      Navigator.pop(context);
+                      SmartDialog.showToast(
+                        '将在当前视频播放结束后${_shutdownType.label}',
+                      );
+                    },
+                    title: const Text('播放到当前视频结束', style: titleStyle),
+                    trailing: _endOfVideoOnly
+                        ? Icon(
+                            Icons.done,
+                            size: 20,
+                            color: theme.colorScheme.primary,
+                          )
+                        : null,
+                  ),
                 ListTile(
                   dense: true,
                   onTap: () =>
@@ -330,7 +360,7 @@ class ShutdownTimerService {
                       return Row(
                         spacing: 12,
                         children: [
-                          const Text('倒计时结束:', style: titleStyle),
+                          const Text('关闭方式:', style: titleStyle),
                           ..._ShutdownType.values.map(
                             (e) => ActionRowLineItem(
                               onTap: () {

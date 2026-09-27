@@ -78,7 +78,7 @@ List<SettingsModel> get playSettings => [
   ),
   const SwitchModel(
     title: '双击快退/快进',
-    subtitle: '左侧双击快退/右侧双击快进，关闭则双击均为暂停/播放',
+    subtitle: '左侧双击后退10秒，右侧双击快进10秒，中间双击暂停/播放；关闭则双击均为暂停/播放',
     leading: Icon(Icons.touch_app_outlined),
     setKey: SettingBoxKey.enableQuickDouble,
     defaultVal: true,

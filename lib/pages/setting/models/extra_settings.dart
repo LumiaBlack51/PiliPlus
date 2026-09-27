@@ -631,8 +631,8 @@ List<SettingsModel> get extraSettings => [
     onTap: _showCacheDialog,
   ),
   SwitchModel(
-    title: '检查更新',
-    subtitle: '每次启动时检查是否需要更新',
+    title: '自动检查更新',
+    subtitle: '启动时检查 LumiaBlack51/PiliPlus 的 GitHub Releases，有新版时提示下载',
     leading: const Icon(Icons.system_update_alt),
     setKey: SettingBoxKey.autoUpdate,
     defaultVal: true,

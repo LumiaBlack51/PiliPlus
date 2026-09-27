@@ -1133,11 +1133,11 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
       return;
     }
     final double tapPosition = details.localPosition.dx;
-    final double sectionWidth = maxWidth / 4;
+    final double sectionWidth = maxWidth / 3;
     DoubleTapType type;
     if (tapPosition < sectionWidth) {
       type = DoubleTapType.left;
-    } else if (tapPosition < sectionWidth * 3) {
+    } else if (tapPosition < sectionWidth * 2) {
       type = DoubleTapType.center;
     } else {
       type = DoubleTapType.right;
@@ -1957,8 +1957,7 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
                                 child: child,
                               ),
                               child: BackwardSeekIndicator(
-                                duration:
-                                    plPlayerController.fastForBackwardDuration,
+                                duration: const Duration(seconds: 10),
                                 onSubmitted: (Duration value) {
                                   plPlayerController
                                     ..mountSeekBackwardButton.value = false
@@ -1966,8 +1965,10 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
                                 },
                               ),
                             ),
-                          ),
-                        const Spacer(flex: 2),
+                          )
+                        else
+                          const Spacer(),
+                        const Spacer(),
                         if (mountSeekForwardButton)
                           Expanded(
                             child: TweenAnimationBuilder<double>(
@@ -1978,8 +1979,7 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
                                 child: child,
                               ),
                               child: ForwardSeekIndicator(
-                                duration:
-                                    plPlayerController.fastForBackwardDuration,
+                                duration: const Duration(seconds: 10),
                                 onSubmitted: (Duration value) {
                                   plPlayerController
                                     ..mountSeekForwardButton.value = false
@@ -1987,7 +1987,9 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
                                 },
                               ),
                             ),
-                          ),
+                          )
+                        else
+                          const Spacer(),
                       ],
                     ),
                   )

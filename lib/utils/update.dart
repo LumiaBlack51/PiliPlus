@@ -3,9 +3,7 @@ import 'dart:io' show Platform;
 import 'package:PiliPlus/build_config.dart';
 import 'package:PiliPlus/common/constants.dart';
 import 'package:PiliPlus/http/api.dart';
-import 'package:PiliPlus/http/browser_ua.dart';
-import 'package:PiliPlus/http/init.dart';
-import 'package:PiliPlus/utils/accounts/account.dart';
+import 'package:PiliPlus/utils/release_version.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
@@ -16,28 +14,39 @@ import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:material_ui/material_ui.dart';
 
 abstract final class Update {
+  static bool _checking = false;
   // 检查更新
   static Future<void> checkUpdate([bool isAuto = true]) async {
-    if (kDebugMode) return;
-    SmartDialog.dismiss();
+    if (_checking) return;
+    _checking = true;
+    final client = Dio(
+      BaseOptions(
+        connectTimeout: const Duration(seconds: 15),
+        receiveTimeout: const Duration(seconds: 15),
+        headers: {
+          'Accept': 'application/vnd.github+json',
+          'User-Agent': 'PiliPlus',
+        },
+      ),
+    );
     try {
-      final res = await Request().get(
-        Api.latestApp,
-        options: Options(
-          headers: {'user-agent': BrowserUa.mob},
-          extra: {'account': const NoAccount()},
-        ),
-      );
-      if (res.data is Map || res.data.isEmpty) {
+      final res = await client.get(Api.latestApp);
+      final data = res.data;
+      if (data is! Map ||
+          data['draft'] != false ||
+          data['prerelease'] != false ||
+          data['tag_name'] is! String ||
+          ReleaseVersion.parse(data['tag_name']) == null) {
         if (!isAuto) {
           SmartDialog.showToast('检查更新失败，GitHub接口未返回数据，请检查网络');
         }
         return;
       }
-      final data = res.data[0];
-      final int latest =
-          DateTime.parse(data['created_at']).millisecondsSinceEpoch ~/ 1000;
-      if (BuildConfig.buildTime >= latest) {
+      if (!ReleaseVersion.isNewer(
+        data['tag_name'],
+        BuildConfig.versionName,
+        BuildConfig.versionCode,
+      )) {
         if (!isAuto) {
           SmartDialog.showToast('已是最新版本');
         }
@@ -66,10 +75,10 @@ abstract final class Update {
                       Text('${data['body']}'),
                       TextButton(
                         onPressed: () => PageUtils.launchURL(
-                          '${Constants.sourceCodeUrl}/commits/main',
+                          '${Constants.sourceCodeUrl}/releases/latest',
                         ),
                         child: Text(
-                          "点此查看完整更新(即commit)内容",
+                          '查看 GitHub Release',
                           style: TextStyle(color: colorScheme.primary),
                         ),
                       ),
@@ -104,7 +113,7 @@ abstract final class Update {
                   downloadBtn('deb', ext: 'deb'),
                   downloadBtn('targz', ext: 'tar.gz'),
                 ] else
-                  downloadBtn('Github'),
+                  downloadBtn(Platform.isAndroid ? '下载更新 APK' : '下载更新'),
               ],
             );
           },
@@ -112,6 +121,16 @@ abstract final class Update {
       }
     } catch (e) {
       if (kDebugMode) debugPrint('failed to check update: $e');
+      if (!isAuto) {
+        SmartDialog.showToast(
+          e is DioException && e.response?.statusCode == 404
+              ? '仓库暂未发布正式版本'
+              : '检查更新失败，请稍后重试或检查网络',
+        );
+      }
+    } finally {
+      client.close();
+      _checking = false;
     }
   }
 
@@ -120,10 +139,13 @@ abstract final class Update {
     SmartDialog.dismiss();
     try {
       void download(String plat) {
-        if (data['assets'].isNotEmpty) {
+        if (data['assets'] is List && data['assets'].isNotEmpty) {
           for (Map<String, dynamic> i in data['assets']) {
             final String name = i['name'];
             if (name.contains(plat) &&
+                (!Platform.isAndroid ||
+                    name.endsWith('.apk') &&
+                        name.contains(kDebugMode ? '-debug' : '-release')) &&
                 (ext == null || ext.isEmpty ? true : name.endsWith(ext))) {
               PageUtils.launchURL(i['browser_download_url']);
               return;
@@ -131,6 +153,7 @@ abstract final class Update {
           }
           throw UnsupportedError('platform not found: $plat');
         }
+        throw StateError('release has no assets');
       }
 
       if (Platform.isAndroid) {

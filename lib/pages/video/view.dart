@@ -238,14 +238,15 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
 
     if (status.isCompleted) {
       try {
-        if (videoDetailController
-                .steinEdgeInfo
-                ?.edges
-                ?.questions
-                ?.firstOrNull
-                ?.choices
-                ?.isNotEmpty ==
-            true) {
+        if (!shutdownTimerService.isWaiting &&
+            videoDetailController
+                    .steinEdgeInfo
+                    ?.edges
+                    ?.questions
+                    ?.firstOrNull
+                    ?.choices
+                    ?.isNotEmpty ==
+                true) {
           videoDetailController.showSteinEdgeInfo.value = true;
           return;
         }
