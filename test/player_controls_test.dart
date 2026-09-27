@@ -1,4 +1,5 @@
 import 'package:PiliPlus/plugin/pl_player/widgets/backward_seek.dart';
+import 'package:PiliPlus/plugin/pl_player/widgets/center_playback_controls.dart';
 import 'package:PiliPlus/plugin/pl_player/widgets/forward_seek.dart';
 import 'package:PiliPlus/services/shutdown_timer_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,6 +7,59 @@ import 'package:material_ui/material_ui.dart';
 
 void main() {
   tearDown(shutdownTimerService.reset);
+
+  testWidgets(
+    'center buttons use single taps, ignore doubles, and leave sides available',
+    (tester) async {
+      var previous = 0;
+      var pause = 0;
+      var next = 0;
+      var sideSeek = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 240,
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onDoubleTap: () => sideSeek++,
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: CenterPlaybackControls(
+                      isPlaying: true,
+                      onPrevious: () => previous++,
+                      onPlayPause: () => pause++,
+                      onNext: () => next++,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      for (final label in ['上一集', '暂停', '下一集']) {
+        await tester.tap(find.byTooltip(label));
+        await tester.pump(const Duration(milliseconds: 350));
+      }
+      expect([previous, pause, next], [1, 1, 1]);
+      await tester.tap(find.byTooltip('暂停'));
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.tap(find.byTooltip('暂停'));
+      await tester.pump(const Duration(milliseconds: 350));
+      expect(pause, 1);
+      await tester.tapAt(const Offset(25, 100));
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.tapAt(const Offset(25, 100));
+      await tester.pump(const Duration(milliseconds: 350));
+      expect(sideSeek, 1);
+    },
+  );
 
   test(
     'end-of-video shutdown is active without a countdown and can be cancelled',

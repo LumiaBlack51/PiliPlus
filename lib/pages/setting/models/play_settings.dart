@@ -77,11 +77,11 @@ List<SettingsModel> get playSettings => [
     defaultVal: PlatformUtils.isMobile,
   ),
   const SwitchModel(
-    title: '双击快退/快进',
-    subtitle: '左侧双击后退10秒，右侧双击快进10秒，中间双击暂停/播放；关闭则双击均为暂停/播放',
+    title: 'YouTube 式播放手势',
+    subtitle: '左/右侧双击后退/快进10秒；单击显示居中的上一集、播放/暂停、下一集。开启后禁用双击暂停，重新打开视频生效',
     leading: Icon(Icons.touch_app_outlined),
     setKey: SettingBoxKey.enableQuickDouble,
-    defaultVal: true,
+    defaultVal: false,
   ),
   const SwitchModel(
     title: '左右侧滑动调节亮度/音量',

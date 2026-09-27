@@ -47,6 +47,7 @@ import 'package:PiliPlus/plugin/pl_player/widgets/app_bar_ani.dart';
 import 'package:PiliPlus/plugin/pl_player/widgets/backward_seek.dart';
 import 'package:PiliPlus/plugin/pl_player/widgets/bottom_control.dart';
 import 'package:PiliPlus/plugin/pl_player/widgets/common_btn.dart';
+import 'package:PiliPlus/plugin/pl_player/widgets/center_playback_controls.dart';
 import 'package:PiliPlus/plugin/pl_player/widgets/forward_seek.dart';
 import 'package:PiliPlus/plugin/pl_player/widgets/mpv_convert_webp.dart';
 import 'package:PiliPlus/plugin/pl_player/widgets/play_pause_btn.dart';
@@ -880,9 +881,12 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
     final isNotFileSource = !plPlayerController.isFileSource;
 
     List<BottomControlType> userSpecifyItemLeft = [
-      .playOrPause,
+      if (!_useCenterControls) .playOrPause,
       .time,
-      if (!isNotFileSource || anySeason) ...[.pre, .next],
+      if (!_useCenterControls && (!isNotFileSource || anySeason)) ...[
+        .pre,
+        .next,
+      ],
     ];
 
     final flag =
@@ -914,6 +918,11 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
   }
 
   PlPlayerController get plPlayerController => widget.plPlayerController;
+
+  bool get _useCenterControls =>
+      PlatformUtils.isMobile &&
+      !plPlayerController.isLive &&
+      plPlayerController.enableQuickDouble;
 
   bool get isFullScreen => plPlayerController.isFullScreen.value;
 
@@ -1794,6 +1803,39 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
             maxWidth,
             maxHeight,
             () => mounted,
+          ),
+
+        if (_useCenterControls)
+          Positioned.fill(
+            child: Obx(() {
+              if (!plPlayerController.showControls.value ||
+                  plPlayerController.controlsLock.value ||
+                  plPlayerController.dataStatus.loading ||
+                  plPlayerController.isBuffering.value ||
+                  plPlayerController.isSeeking.value ||
+                  plPlayerController.longPressStatus.value) {
+                return const SizedBox.shrink();
+              }
+              return CenterPlaybackControls(
+                isPlaying: plPlayerController.playerStatus.isPlaying,
+                onPrevious: () {
+                  plPlayerController.controls = true;
+                  if (!introController.prevPlay()) {
+                    SmartDialog.showToast('已经是第一集了');
+                  }
+                },
+                onPlayPause: () {
+                  plPlayerController.controls = true;
+                  plPlayerController.onDoubleTapCenter();
+                },
+                onNext: () {
+                  plPlayerController.controls = true;
+                  if (!introController.nextPlay()) {
+                    SmartDialog.showToast('已经是最后一集了');
+                  }
+                },
+              );
+            }),
           ),
 
         if (isFullScreen || plPlayerController.isDesktopPip) ...[

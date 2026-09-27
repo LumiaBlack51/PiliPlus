@@ -1425,7 +1425,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
         onDoubleTapSeekBackward();
         break;
       case DoubleTapType.center:
-        onDoubleTapCenter();
+        // In quick-seek mode playback is controlled by the single-tap buttons.
         break;
       case DoubleTapType.right:
         // 双击右边区域 👈
